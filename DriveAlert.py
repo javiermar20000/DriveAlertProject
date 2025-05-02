@@ -145,20 +145,23 @@ def calibrate_user(cap):
                     preds.append(predict_yawn(frame))
             time.sleep(0.3)
 
-            preds = sorted(preds)
-            trimmed = preds[2:-2]  # eliminar los 2 valores más bajos y más altos
+        # Procesar predicciones después de capturar todas
+        preds = sorted(preds)
+        trimmed = preds[2:-2]  # eliminar los 2 valores extremos
         return np.mean(trimmed)
 
     print("\n=== Calibración de usuario ===")
-    open_eye_vals = [capture_state("MANTÉN LOS OJOS ABIERTOS")]
-    closed_eye_vals = [capture_state("CIERRA LOS OJOS COMPLETAMENTE")]
-    yawn_vals = [capture_state("BOSTEZA (o simula un bostezo fuerte)")]
-    no_yawn_vals = [capture_state("RELÁJATE SIN BOSTEZAR (posición neutral)")]
+    open_eye_val = capture_state("MANTÉN LOS OJOS ABIERTOS")
+    closed_eye_val = capture_state("CIERRA LOS OJOS COMPLETAMENTE")
+    yawn_val = capture_state("BOSTEZA (o simula un bostezo fuerte)")
+    no_yawn_val = capture_state("RELÁJATE SIN BOSTEZAR (posición neutral)")
 
-    eye_threshold = (np.percentile(closed_eye_vals, 25) + np.percentile(open_eye_vals, 75)) / 2
-    yawn_threshold = (np.percentile(no_yawn_vals, 25) + np.percentile(yawn_vals, 75)) / 2
+    eye_threshold = (closed_eye_val + open_eye_val) / 2
+    yawn_threshold = (no_yawn_val + yawn_val) / 2
 
     print("\n--- Calibración completada ---")
+    print(f"Umbral ojos: {eye_threshold:.4f}, Umbral bostezo: {yawn_threshold:.4f}")
+
     return {
         "eye_threshold": eye_threshold,
         "yawn_threshold": yawn_threshold
