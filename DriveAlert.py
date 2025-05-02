@@ -9,6 +9,8 @@ import numpy as np
 import os
 import tkinter as tk
 from PIL import Image, ImageTk
+import pygame
+import threading
 
 # --- Cargar o entrenar modelo de ojos ---
 if os.path.exists("models/eye_model_trained.h5"):
@@ -119,7 +121,16 @@ class SleepDetectorApp:
         self.close_button.pack()
 
         self.cap = cv2.VideoCapture(0)
+
+        pygame.mixer.init()
+        pygame.mixer.music.load("alerta.mp3")
+
         self.update_video()
+
+    def play_alert_sound(self):
+        if not pygame.mixer.music.get_busy():
+            pygame.mixer.music.play()
+
 
     def update_video(self):
         ret, frame = self.cap.read()
@@ -132,6 +143,9 @@ class SleepDetectorApp:
 
         yawn_text = "Bostezo" if yawn_pred > 0.9 else "No bostezo"
         eye_text = "Ojos abiertos" if eye_pred > 0.8 else "Ojos cerrados"
+
+        if yawn_pred > 0.9 or eye_pred < 0.8:
+            threading.Thread(target=self.play_alert_sound, daemon=True).start()
 
         # Mostrar texto sobre el frame
         cv2.putText(frame, f"{yawn_text} ({yawn_pred:.2f})", (10, 30),
