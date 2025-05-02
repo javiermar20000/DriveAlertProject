@@ -20,7 +20,7 @@ if os.path.exists("models/eye_model_trained.h5"):
     print("Modelo de ojos cargado desde archivo.")
 else:
     print("Entrenando modelo de ojos...")
-    eye_model = ResNet50(weights='imagenet', include_top=False, input_shape=(224, 224, 3))
+    eye_model = MobileNet(weights='imagenet', include_top=False, input_shape=(224, 224, 3))
     eye_model.trainable = False
 
     eye_classifier = Sequential([
@@ -69,7 +69,7 @@ if os.path.exists("models/yawn_model_trained.h5"):
     print("Modelo de bostezo cargado desde archivo.")
 else:
     print("Entrenando modelo de bostezo...")
-    base_model = ResNet50(weights='imagenet', include_top=False, input_shape=(224, 224, 3))
+    base_model = MobileNet(weights='imagenet', include_top=False, input_shape=(224, 224, 3))
     base_model.trainable = False
 
     yawn_model = Sequential([
