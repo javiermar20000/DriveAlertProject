@@ -163,6 +163,9 @@ class SleepDetectorApp:
     def __init__(self, root):
         self.root = root
         self.root.title("Detección de Sueño")
+
+        self.eyes_closed_start_time = None
+        self.eyes_closed_duration_threshold = 5  # segundos
         
         self.video_label = tk.Label(root)
         self.video_label.pack()
@@ -199,8 +202,18 @@ class SleepDetectorApp:
         yawn_text = "Bostezo" if yawn_pred > self.thresholds["yawn_threshold"] else "No bostezo"
         eye_text = "Ojos abiertos" if eye_pred > self.thresholds["eye_threshold"] else "Ojos cerrados"
 
-        if yawn_pred > self.thresholds["yawn_threshold"] or eye_pred < self.thresholds["eye_threshold"]:
+        # Bostezo: activar alarma de inmediato
+        if yawn_pred > self.thresholds["yawn_threshold"]:
             threading.Thread(target=self.play_alert_sound, daemon=True).start()
+
+        # Ojos cerrados: activar solo si han pasado 5 segundos seguidos
+        if eye_pred < self.thresholds["eye_threshold"]:
+            if self.eyes_closed_start_time is None:
+                self.eyes_closed_start_time = time.time()
+            elif time.time() - self.eyes_closed_start_time >= self.eyes_closed_duration_threshold:
+                threading.Thread(target=self.play_alert_sound, daemon=True).start()
+        else:
+            self.eyes_closed_start_time = None  # Reiniciar si abre los ojos
 
         # Mostrar texto sobre el frame
         cv2.putText(frame, f"{yawn_text} ({yawn_pred:.2f})", (10, 30),
