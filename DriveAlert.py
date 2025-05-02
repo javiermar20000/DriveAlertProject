@@ -3,9 +3,12 @@ from tensorflow.keras.preprocessing.image import ImageDataGenerator
 from tensorflow.keras.applications.mobilenet import MobileNet, preprocess_input
 from tensorflow.keras.models import Sequential, load_model
 from tensorflow.keras.layers import Dense, GlobalAveragePooling2D
+
 import cv2
 import numpy as np
 import os
+import tkinter as tk
+from PIL import Image, ImageTk
 
 # --- Cargar o entrenar modelo de ojos ---
 if os.path.exists("models/eye_model_trained.h5"):
@@ -100,37 +103,61 @@ def predict_eye(image):
     img = np.expand_dims(img, axis=0)
     return eye_classifier.predict(img)[0][0]
 
-# --- Loop de cámara ---
-cap = cv2.VideoCapture(0)
+# --- Interfaz Tkinter ---
+class SleepDetectorApp:
+    def __init__(self, root):
+        self.root = root
+        self.root.title("Detección de Sueño")
+        
+        self.video_label = tk.Label(root)
+        self.video_label.pack()
 
-if not cap.isOpened():
-    print("Error al abrir la cámara")
-    exit()
+        self.status_label = tk.Label(root, text="", font=("Helvetica", 14))
+        self.status_label.pack(pady=10)
 
-while True:
-    ret, frame = cap.read()
-    if not ret:
-        break
+        self.close_button = tk.Button(root, text="Cerrar", command=self.close_app)
+        self.close_button.pack()
 
-    resized_frame = cv2.resize(frame, (224, 224))
-    img = preprocess_input(resized_frame)
-    img = np.expand_dims(img, axis=0)
+        self.cap = cv2.VideoCapture(0)
+        self.update_video()
 
-    yawn_pred = yawn_model.predict(img)[0][0]
-    eye_pred = eye_classifier.predict(img)[0][0]
+    def update_video(self):
+        ret, frame = self.cap.read()
+        if not ret:
+            return
 
-    yawn_text = "Bostezo" if yawn_pred > 0.5 else "No bostezo"
-    eye_text = "Ojos abiertos" if eye_pred > 0.5 else "Ojos cerrados"
+        img_resized = cv2.resize(frame, (224, 224))
+        yawn_pred = predict_yawn(img_resized)
+        eye_pred = predict_eye(img_resized)
 
-    cv2.putText(frame, f"{yawn_text} ({yawn_pred:.2f})", (10, 30),
-                cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 255), 2)
-    cv2.putText(frame, f"{eye_text} ({eye_pred:.2f})", (10, 60),
-                cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 0, 0), 2)
+        yawn_text = "Bostezo" if yawn_pred > 0.5 else "No bostezo"
+        eye_text = "Ojos abiertos" if eye_pred > 0.5 else "Ojos cerrados"
 
-    cv2.imshow("Detección de Sueño", frame)
+        # Mostrar texto sobre el frame
+        cv2.putText(frame, f"{yawn_text} ({yawn_pred:.2f})", (10, 30),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 255), 2)
+        cv2.putText(frame, f"{eye_text} ({eye_pred:.2f})", (10, 60),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 0, 0), 2)
 
-    if cv2.waitKey(1) & 0xFF == ord('q'):
-        break
+        # Actualizar texto en Tkinter
+        self.status_label.config(text=f"{yawn_text} | {eye_text}")
 
-cap.release()
-cv2.destroyAllWindows()
+        # Convertir imagen a formato para Tkinter
+        frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        img = Image.fromarray(frame)
+        imgtk = ImageTk.PhotoImage(image=img)
+
+        self.video_label.imgtk = imgtk
+        self.video_label.configure(image=imgtk)
+
+        self.root.after(10, self.update_video)
+
+    def close_app(self):
+        self.cap.release()
+        self.root.destroy()
+
+# Ejecutar la interfaz
+if __name__ == "__main__":
+    root = tk.Tk()
+    app = SleepDetectorApp(root)
+    root.mainloop()
