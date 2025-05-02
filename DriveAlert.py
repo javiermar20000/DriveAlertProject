@@ -3,6 +3,7 @@ from tensorflow.keras.preprocessing.image import ImageDataGenerator
 from tensorflow.keras.applications.mobilenet import MobileNet, preprocess_input
 from tensorflow.keras.models import Sequential, load_model
 from tensorflow.keras.layers import Dense, GlobalAveragePooling2D
+from tensorflow.keras.applications import ResNet50
 
 import cv2
 import numpy as np
@@ -19,7 +20,7 @@ if os.path.exists("models/eye_model_trained.h5"):
     print("Modelo de ojos cargado desde archivo.")
 else:
     print("Entrenando modelo de ojos...")
-    eye_model = MobileNet(weights='imagenet', include_top=False, input_shape=(224, 224, 3))
+    eye_model = ResNet50(weights='imagenet', include_top=False, input_shape=(224, 224, 3))
     eye_model.trainable = False
 
     eye_classifier = Sequential([
@@ -28,7 +29,17 @@ else:
         Dense(1, activation='sigmoid')
     ])
 
-    eye_datagen = ImageDataGenerator(preprocessing_function=preprocess_input, validation_split=0.2)
+    eye_datagen = ImageDataGenerator(
+    preprocessing_function=preprocess_input,
+    rotation_range=10,
+    width_shift_range=0.1,
+    height_shift_range=0.1,
+    shear_range=0.2,
+    zoom_range=0.2,
+    horizontal_flip=True,
+    fill_mode='nearest',
+    validation_split=0.2
+)
 
     eye_train_generator = eye_datagen.flow_from_directory(
         'eyes_model',
@@ -47,7 +58,7 @@ else:
     )
 
     eye_classifier.compile(optimizer='adam', loss='binary_crossentropy', metrics=['accuracy'])
-    eye_classifier.fit(eye_train_generator, validation_data=eye_val_generator, epochs=5)
+    eye_classifier.fit(eye_train_generator, validation_data=eye_val_generator, epochs=30)
 
     os.makedirs("models", exist_ok=True)
     eye_classifier.save("models/eye_model_trained.h5")
@@ -58,7 +69,7 @@ if os.path.exists("models/yawn_model_trained.h5"):
     print("Modelo de bostezo cargado desde archivo.")
 else:
     print("Entrenando modelo de bostezo...")
-    base_model = MobileNet(weights='imagenet', include_top=False, input_shape=(224, 224, 3))
+    base_model = ResNet50(weights='imagenet', include_top=False, input_shape=(224, 224, 3))
     base_model.trainable = False
 
     yawn_model = Sequential([
@@ -67,7 +78,17 @@ else:
         Dense(1, activation='sigmoid')
     ])
 
-    train_datagen = ImageDataGenerator(preprocessing_function=preprocess_input, validation_split=0.2)
+    train_datagen = ImageDataGenerator(
+    preprocessing_function=preprocess_input,
+    rotation_range=10,
+    width_shift_range=0.1,
+    height_shift_range=0.1,
+    shear_range=0.2,
+    zoom_range=0.2,
+    horizontal_flip=True,
+    fill_mode='nearest',
+    validation_split=0.2
+)
 
     train_generator = train_datagen.flow_from_directory(
         'yawn_model',
@@ -86,7 +107,7 @@ else:
     )
 
     yawn_model.compile(optimizer='adam', loss='binary_crossentropy', metrics=['accuracy'])
-    yawn_model.fit(train_generator, validation_data=val_generator, epochs=5)
+    yawn_model.fit(train_generator, validation_data=val_generator, epochs=30)
 
     os.makedirs("models", exist_ok=True)
     yawn_model.save("models/yawn_model_trained.h5")
