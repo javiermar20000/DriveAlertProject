@@ -11,86 +11,20 @@ import tkinter as tk
 from PIL import Image, ImageTk
 import pygame
 import threading
+import time
 
-# --- Cargar o entrenar modelo de ojos ---
+# --- Cargar modelos existentes ---
 if os.path.exists("models/eye_model_trained.h5"):
     eye_classifier = load_model("models/eye_model_trained.h5")
     print("Modelo de ojos cargado desde archivo.")
 else:
-    print("Entrenando modelo de ojos...")
-    eye_model = MobileNet(weights='imagenet', include_top=False, input_shape=(224, 224, 3))
-    eye_model.trainable = False
+    raise FileNotFoundError("No se encontró el modelo de ojos entrenado.")
 
-    eye_classifier = Sequential([
-        eye_model,
-        GlobalAveragePooling2D(),
-        Dense(1, activation='sigmoid')
-    ])
-
-    eye_datagen = ImageDataGenerator(preprocessing_function=preprocess_input, validation_split=0.2)
-
-    eye_train_generator = eye_datagen.flow_from_directory(
-        'eyes_model',
-        target_size=(224, 224),
-        batch_size=16,
-        class_mode='binary',
-        subset='training'
-    )
-
-    eye_val_generator = eye_datagen.flow_from_directory(
-        'eyes_model',
-        target_size=(224, 224),
-        batch_size=16,
-        class_mode='binary',
-        subset='validation'
-    )
-
-    eye_classifier.compile(optimizer='adam', loss='binary_crossentropy', metrics=['accuracy'])
-    eye_classifier.fit(eye_train_generator, validation_data=eye_val_generator, epochs=5)
-
-    os.makedirs("models", exist_ok=True)
-    eye_classifier.save("models/eye_model_trained.h5")
-    print("Modelo de ojos entrenado y guardado.")
-
-# --- Cargar o entrenar modelo de bostezo ---
 if os.path.exists("models/yawn_model_trained.h5"):
     yawn_model = load_model("models/yawn_model_trained.h5")
     print("Modelo de bostezo cargado desde archivo.")
 else:
-    print("Entrenando modelo de bostezo...")
-    base_model = MobileNet(weights='imagenet', include_top=False, input_shape=(224, 224, 3))
-    base_model.trainable = False
-
-    yawn_model = Sequential([
-        base_model,
-        GlobalAveragePooling2D(),
-        Dense(1, activation='sigmoid')
-    ])
-
-    train_datagen = ImageDataGenerator(preprocessing_function=preprocess_input, validation_split=0.2)
-
-    train_generator = train_datagen.flow_from_directory(
-        'yawn_model',
-        target_size=(224, 224),
-        batch_size=16,
-        class_mode='binary',
-        subset='training'
-    )
-
-    val_generator = train_datagen.flow_from_directory(
-        'yawn_model',
-        target_size=(224, 224),
-        batch_size=16,
-        class_mode='binary',
-        subset='validation'
-    )
-
-    yawn_model.compile(optimizer='adam', loss='binary_crossentropy', metrics=['accuracy'])
-    yawn_model.fit(train_generator, validation_data=val_generator, epochs=5)
-
-    os.makedirs("models", exist_ok=True)
-    yawn_model.save("models/yawn_model_trained.h5")
-    print("Modelo de bostezo entrenado y guardado.")
+    raise FileNotFoundError("No se encontró el modelo de bostezo entrenado.")
 
 # --- Funciones de predicción ---
 def predict_yawn(image):
@@ -105,7 +39,39 @@ def predict_eye(image):
     img = np.expand_dims(img, axis=0)
     return eye_classifier.predict(img)[0][0]
 
-# --- Interfaz Tkinter ---
+# --- Calibración inicial del usuario ---
+def calibrate_user(cap):
+    def capture_state(prompt, seconds=3, samples=5):
+        print(f"\n[Instrucción] {prompt}")
+        print("Capturando imágenes en...")
+        for i in range(seconds, 0, -1):
+            print(f"{i}...")
+            time.sleep(1)
+
+        preds = []
+        for _ in range(samples):
+            ret, frame = cap.read()
+            if ret:
+                if "ojos" in prompt.lower():
+                    preds.append(predict_eye(frame))
+                elif "bostezo" in prompt.lower():
+                    preds.append(predict_yawn(frame))
+            time.sleep(0.3)
+        return np.mean(preds)
+
+    print("\n=== Calibración de usuario ===")
+    open_eye_thresh = capture_state("MANTÉN LOS OJOS ABIERTOS")
+    closed_eye_thresh = capture_state("CIERRA LOS OJOS COMPLETAMENTE")
+    yawn_thresh = capture_state("BOSTEZA (o simula un bostezo fuerte)")
+    no_yawn_thresh = capture_state("RELÁJATE SIN BOSTEZAR (posición neutral)")
+
+    print("\n--- Calibración completada ---")
+    return {
+        "eye_threshold": (open_eye_thresh + closed_eye_thresh) / 2,
+        "yawn_threshold": (yawn_thresh + no_yawn_thresh) / 2
+    }
+
+# --- Interfaz Tkinter con calibración integrada ---
 class SleepDetectorApp:
     def __init__(self, root):
         self.root = root
@@ -125,12 +91,14 @@ class SleepDetectorApp:
         pygame.mixer.init()
         pygame.mixer.music.load("alerta.mp3")
 
+        # Calibración del usuario
+        self.thresholds = calibrate_user(self.cap)
+
         self.update_video()
 
     def play_alert_sound(self):
         if not pygame.mixer.music.get_busy():
             pygame.mixer.music.play()
-
 
     def update_video(self):
         ret, frame = self.cap.read()
@@ -141,10 +109,10 @@ class SleepDetectorApp:
         yawn_pred = predict_yawn(img_resized)
         eye_pred = predict_eye(img_resized)
 
-        yawn_text = "Bostezo" if yawn_pred > 0.9 else "No bostezo"
-        eye_text = "Ojos abiertos" if eye_pred > 0.8 else "Ojos cerrados"
+        yawn_text = "Bostezo" if yawn_pred > self.thresholds["yawn_threshold"] else "No bostezo"
+        eye_text = "Ojos abiertos" if eye_pred > self.thresholds["eye_threshold"] else "Ojos cerrados"
 
-        if yawn_pred > 0.9 or eye_pred < 0.8:
+        if yawn_pred > self.thresholds["yawn_threshold"] or eye_pred < self.thresholds["eye_threshold"]:
             threading.Thread(target=self.play_alert_sound, daemon=True).start()
 
         # Mostrar texto sobre el frame
@@ -153,10 +121,8 @@ class SleepDetectorApp:
         cv2.putText(frame, f"{eye_text} ({eye_pred:.2f})", (10, 60),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 0, 0), 2)
 
-        # Actualizar texto en Tkinter
         self.status_label.config(text=f"{yawn_text} | {eye_text}")
 
-        # Convertir imagen a formato para Tkinter
         frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         img = Image.fromarray(frame)
         imgtk = ImageTk.PhotoImage(image=img)
@@ -170,7 +136,7 @@ class SleepDetectorApp:
         self.cap.release()
         self.root.destroy()
 
-# Ejecutar la interfaz
+# --- Ejecutar interfaz ---
 if __name__ == "__main__":
     root = tk.Tk()
     app = SleepDetectorApp(root)
