@@ -130,8 +130,8 @@ class SleepDetectorApp:
         yawn_pred = predict_yawn(img_resized)
         eye_pred = predict_eye(img_resized)
 
-        yawn_text = "Bostezo" if yawn_pred > 0.5 else "No bostezo"
-        eye_text = "Ojos abiertos" if eye_pred > 0.5 else "Ojos cerrados"
+        yawn_text = "Bostezo" if yawn_pred > 0.9 else "No bostezo"
+        eye_text = "Ojos abiertos" if eye_pred > 0.8 else "Ojos cerrados"
 
         # Mostrar texto sobre el frame
         cv2.putText(frame, f"{yawn_text} ({yawn_pred:.2f})", (10, 30),
