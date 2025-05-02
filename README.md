@@ -4,5 +4,5 @@ Se utilizó el Dataset de detección de bostezos: https://www.kaggle.com/dataset
 
 Dependencias necesarias para ejecutar el programa:
 
-pip install opencv-python opencv-python-headless tensorflow keras imutils playsound pillow (o tambien llamado "pil")
+pip install opencv-python opencv-python-headless tensorflow keras imutils playsound pillow (o tambien llamado "pil") tk (tkinter)
 
