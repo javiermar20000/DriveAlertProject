@@ -18,13 +18,79 @@ if os.path.exists("models/eye_model_trained.h5"):
     eye_classifier = load_model("models/eye_model_trained.h5")
     print("Modelo de ojos cargado desde archivo.")
 else:
-    raise FileNotFoundError("No se encontró el modelo de ojos entrenado.")
+    print("Entrenando modelo de ojos...")
+    eye_model = MobileNet(weights='imagenet', include_top=False, input_shape=(224, 224, 3))
+    eye_model.trainable = False
+
+    eye_classifier = Sequential([
+        eye_model,
+        GlobalAveragePooling2D(),
+        Dense(1, activation='sigmoid')
+    ])
+
+    eye_datagen = ImageDataGenerator(preprocessing_function=preprocess_input, validation_split=0.2)
+
+    eye_train_generator = eye_datagen.flow_from_directory(
+        'eyes_model',
+        target_size=(224, 224),
+        batch_size=16,
+        class_mode='binary',
+        subset='training'
+    )
+
+    eye_val_generator = eye_datagen.flow_from_directory(
+        'eyes_model',
+        target_size=(224, 224),
+        batch_size=16,
+        class_mode='binary',
+        subset='validation'
+    )
+
+    eye_classifier.compile(optimizer='adam', loss='binary_crossentropy', metrics=['accuracy'])
+    eye_classifier.fit(eye_train_generator, validation_data=eye_val_generator, epochs=5)
+
+    os.makedirs("models", exist_ok=True)
+    eye_classifier.save("models/eye_model_trained.h5")
+    print("Modelo de ojos entrenado y guardado.")
 
 if os.path.exists("models/yawn_model_trained.h5"):
     yawn_model = load_model("models/yawn_model_trained.h5")
     print("Modelo de bostezo cargado desde archivo.")
 else:
-    raise FileNotFoundError("No se encontró el modelo de bostezo entrenado.")
+    print("Entrenando modelo de bostezo...")
+    base_model = MobileNet(weights='imagenet', include_top=False, input_shape=(224, 224, 3))
+    base_model.trainable = False
+
+    yawn_model = Sequential([
+        base_model,
+        GlobalAveragePooling2D(),
+        Dense(1, activation='sigmoid')
+    ])
+
+    train_datagen = ImageDataGenerator(preprocessing_function=preprocess_input, validation_split=0.2)
+
+    train_generator = train_datagen.flow_from_directory(
+        'yawn_model',
+        target_size=(224, 224),
+        batch_size=16,
+        class_mode='binary',
+        subset='training'
+    )
+
+    val_generator = train_datagen.flow_from_directory(
+        'yawn_model',
+        target_size=(224, 224),
+        batch_size=16,
+        class_mode='binary',
+        subset='validation'
+    )
+
+    yawn_model.compile(optimizer='adam', loss='binary_crossentropy', metrics=['accuracy'])
+    yawn_model.fit(train_generator, validation_data=val_generator, epochs=5)
+
+    os.makedirs("models", exist_ok=True)
+    yawn_model.save("models/yawn_model_trained.h5")
+    print("Modelo de bostezo entrenado y guardado.")
 
 # --- Funciones de predicción ---
 def predict_yawn(image):
