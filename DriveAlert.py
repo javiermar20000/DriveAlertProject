@@ -17,6 +17,10 @@ from sklearn.metrics import classification_report, confusion_matrix # cargamos m
 import matplotlib.pyplot as plt # cargar graficos
 import seaborn as sns # graficos mejorados
 
+
+eye_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_eye.xml')
+face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
+
 # --- Cargar modelos existentes ---
 # Se verifica si ya existe un modelo previamente entrenado para la detección de ojos
 
@@ -305,88 +309,99 @@ def calibrate_user(cap):  # Función que realiza la calibración inicial usando 
 # --- Interfaz Tkinter con calibración integrada ---
 class SleepDetectorApp:
     def __init__(self, root):
-        self.root = root  # Guarda la ventana principal de Tkinter
-        self.root.title("Detección de Sueño")  # Título de la ventana
+        self.root = root
+        self.root.title("Detección de Sueño")
 
-        self.eyes_closed_start_time = None  # Marca de tiempo cuando los ojos se cierran
-        self.eyes_closed_duration_threshold = 5  # Tiempo (en segundos) para activar la alarma si los ojos están cerrados
+        self.eyes_closed_start_time = None
+        self.eyes_closed_duration_threshold = 5
 
-        self.video_label = tk.Label(root)  # Etiqueta donde se mostrará el video
-        self.video_label.pack()  # Empaqueta (agrega) el widget a la interfaz
+        self.video_label = tk.Label(root)
+        self.video_label.pack()
 
-        self.status_label = tk.Label(root, text="", font=("Helvetica", 14))  # Etiqueta para mostrar el estado (bostezo/ojos)
-        self.status_label.pack(pady=10)  # Agrega espacio vertical entre widgets
+        self.status_label = tk.Label(root, text="", font=("Helvetica", 14))
+        self.status_label.pack(pady=10)
 
-        self.close_button = tk.Button(root, text="Cerrar", command=self.close_app)  # Botón para cerrar la aplicación
+        self.close_button = tk.Button(root, text="Cerrar", command=self.close_app)
         self.close_button.pack()
 
-        self.cap = cv2.VideoCapture(0)  # Captura de video desde la cámara (índice 0)
+        self.cap = cv2.VideoCapture(0)
 
-        pygame.mixer.init()  # Inicializa el módulo de sonido
-        pygame.mixer.music.load("alerta.mp3")  # Carga el sonido de alerta
+        pygame.mixer.init()
+        pygame.mixer.music.load("alerta.mp3")
 
-        # Calibración del usuario usando la cámara
-        self.thresholds = calibrate_user(self.cap)  # Guarda umbrales personalizados para ojos y bostezo
+        self.thresholds = calibrate_user(self.cap)
 
-        self.update_video()  # Comienza a actualizar el video en la interfaz
+        # Cargar el clasificador Haar para los ojos
+        self.eye_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + "haarcascade_eye.xml")
+
+        # Cargar el clasificador Haar para la detección de rostros
+        self.face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
+
+        self.update_video()
 
     def play_alert_sound(self):
-        # Reproduce la alarma solo si no se está reproduciendo ya
         if not pygame.mixer.music.get_busy():
             pygame.mixer.music.play()
 
     def update_video(self):
-        ret, frame = self.cap.read()  # Lee un frame de la cámara
+        ret, frame = self.cap.read()
         if not ret:
-            return  # Si no hay frame válido, se sale
+            return
 
-        img_resized = cv2.resize(frame, (224, 224))  # Redimensiona el frame para el modelo
-        yawn_pred = predict_yawn(img_resized)  # Predice si hay bostezo
-        eye_pred = predict_eye(img_resized)  # Predice si los ojos están abiertos o cerrados
+        img_resized = cv2.resize(frame, (224, 224))
+        yawn_pred = predict_yawn(img_resized)
+        eye_pred = predict_eye(img_resized)
 
-        # Determina el texto a mostrar según el umbral y la predicción
         yawn_text = "Bostezo" if yawn_pred > self.thresholds["yawn_threshold"] else "No bostezo"
         eye_text = "Ojos abiertos" if eye_pred > self.thresholds["eye_threshold"] else "Ojos cerrados"
 
-        # Si hay bostezo, reproduce alarma inmediatamente
         if yawn_pred > self.thresholds["yawn_threshold"]:
             threading.Thread(target=self.play_alert_sound, daemon=True).start()
 
-        # Si los ojos están cerrados
         if eye_pred < self.thresholds["eye_threshold"]:
             if self.eyes_closed_start_time is None:
-                self.eyes_closed_start_time = time.time()  # Marca el inicio del cierre de ojos
+                self.eyes_closed_start_time = time.time()
             elif time.time() - self.eyes_closed_start_time >= self.eyes_closed_duration_threshold:
-                # Si se cumplen 5 segundos, reproduce alarma
                 threading.Thread(target=self.play_alert_sound, daemon=True).start()
         else:
-            self.eyes_closed_start_time = None  # Si los ojos se abren, reinicia el contador
+            self.eyes_closed_start_time = None
 
-        # Muestra texto en el video con las predicciones
+        # === Detección de ojos con rectángulo verde ===
+        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        eyes = self.eye_cascade.detectMultiScale(gray, 1.3, 5)
+        for (ex, ey, ew, eh) in eyes:
+            cv2.rectangle(frame, (ex, ey), (ex + ew, ey + eh), (0, 255, 0), 2)
+
+        # === Detección de rostros con rectángulo rojo ===
+        faces = self.face_cascade.detectMultiScale(gray, 1.3, 5)
+        for (fx, fy, fw, fh) in faces:
+            cv2.rectangle(frame, (fx, fy), (fx + fw, fy + fh), (0, 0, 255), 2)
+
+        # Mostrar texto en el frame
         cv2.putText(frame, f"{yawn_text} ({yawn_pred:.2f})", (10, 30),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 255), 2)
         cv2.putText(frame, f"{eye_text} ({eye_pred:.2f})", (10, 60),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 0, 0), 2)
 
-        # Muestra el estado actual en la interfaz
         self.status_label.config(text=f"{yawn_text} | {eye_text}")
 
-        # Convierte el frame a formato RGB y lo transforma en imagen para Tkinter
         frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         img = Image.fromarray(frame)
         imgtk = ImageTk.PhotoImage(image=img)
 
-        self.video_label.imgtk = imgtk  # Se guarda la imagen para evitar que el recolector de basura la elimine
-        self.video_label.configure(image=imgtk)  # Muestra la imagen en la interfaz
+        self.video_label.imgtk = imgtk
+        self.video_label.configure(image=imgtk)
 
-        self.root.after(10, self.update_video)  # Llama de nuevo a esta función después de 10 ms (actualización continua)
+        self.root.after(10, self.update_video)
 
     def close_app(self):
-        self.cap.release()  # Libera la cámara
-        self.root.destroy()  # Cierra la ventana de la aplicación
+        self.cap.release()
+        self.root.destroy()
 
 # --- Ejecutar interfaz ---
 if __name__ == "__main__":
     root = tk.Tk()
     app = SleepDetectorApp(root)
     root.mainloop()
+
+
