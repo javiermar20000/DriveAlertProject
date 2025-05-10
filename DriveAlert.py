@@ -352,19 +352,27 @@ class SleepDetectorApp:
         yawn_pred = predict_yawn(img_resized)
         eye_pred = predict_eye(img_resized)
 
-        yawn_text = "Bostezo" if yawn_pred > self.thresholds["yawn_threshold"] else "No bostezo"
-        eye_text = "Ojos abiertos" if eye_pred > self.thresholds["eye_threshold"] else "Ojos cerrados"
+        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        faces = self.face_cascade.detectMultiScale(gray, 1.3, 5)
 
-        if yawn_pred > self.thresholds["yawn_threshold"]:
-            threading.Thread(target=self.play_alert_sound, daemon=True).start()
+        if len(faces) > 0:
+            yawn_text = "Bostezo" if yawn_pred > self.thresholds["yawn_threshold"] else "No bostezo"
+            eye_text = "Ojos abiertos" if eye_pred > self.thresholds["eye_threshold"] else "Ojos cerrados"
 
-        if eye_pred < self.thresholds["eye_threshold"]:
-            if self.eyes_closed_start_time is None:
-                self.eyes_closed_start_time = time.time()
-            elif time.time() - self.eyes_closed_start_time >= self.eyes_closed_duration_threshold:
+            if yawn_pred > self.thresholds["yawn_threshold"]:
                 threading.Thread(target=self.play_alert_sound, daemon=True).start()
+
+            if eye_pred < self.thresholds["eye_threshold"]:
+                if self.eyes_closed_start_time is None:
+                    self.eyes_closed_start_time = time.time()
+                elif time.time() - self.eyes_closed_start_time >= self.eyes_closed_duration_threshold:
+                    threading.Thread(target=self.play_alert_sound, daemon=True).start()
+            else:
+                self.eyes_closed_start_time = None
         else:
-            self.eyes_closed_start_time = None
+            yawn_text = ""
+            eye_text = ""
+            self.eyes_closed_start_time = None  # opcional: reiniciar temporizador
 
         # === Detección de ojos con rectángulo verde ===
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
@@ -383,13 +391,21 @@ class SleepDetectorApp:
             cv2.putText(frame, "Rostro detectado", (fx, fy + fh + 20), 
                     cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2)
 
-        # Mostrar texto en el frame
-        cv2.putText(frame, f"{yawn_text} ({yawn_pred:.2f})", (10, 30),
+
+        # Mostrar texto en el frame solo si hay rostros
+        if len(faces) == 0:
+            cv2.putText(frame, "Rostro no detectado", (10, 30),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 255), 2)
-        cv2.putText(frame, f"{eye_text} ({eye_pred:.2f})", (10, 60),
+        else:
+            cv2.putText(frame, f"{yawn_text} ({yawn_pred:.2f})", (10, 30),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 255), 2)
+            cv2.putText(frame, f"{eye_text} ({eye_pred:.2f})", (10, 60),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 0, 0), 2)
 
-        self.status_label.config(text=f"{yawn_text} | {eye_text}")
+        if len(faces) == 0:
+            self.status_label.config(text="Rostro no detectado")
+        else:
+            self.status_label.config(text=f"{yawn_text} | {eye_text}")
 
         frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         img = Image.fromarray(frame)
