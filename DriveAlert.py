@@ -369,13 +369,19 @@ class SleepDetectorApp:
         # === Detección de ojos con rectángulo verde ===
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         eyes = self.eye_cascade.detectMultiScale(gray, 1.3, 5)
+
         for (ex, ey, ew, eh) in eyes:
             cv2.rectangle(frame, (ex, ey), (ex + ew, ey + eh), (0, 255, 0), 2)
+            cv2.putText(frame, "Ojos detectados", (ex, ey + eh + 20), 
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
 
         # === Detección de rostros con rectángulo rojo ===
         faces = self.face_cascade.detectMultiScale(gray, 1.3, 5)
+
         for (fx, fy, fw, fh) in faces:
             cv2.rectangle(frame, (fx, fy), (fx + fw, fy + fh), (0, 0, 255), 2)
+            cv2.putText(frame, "Rostro detectado", (fx, fy + fh + 20), 
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2)
 
         # Mostrar texto en el frame
         cv2.putText(frame, f"{yawn_text} ({yawn_pred:.2f})", (10, 30),
