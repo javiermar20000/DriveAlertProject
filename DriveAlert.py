@@ -307,123 +307,125 @@ def calibrate_user(cap):  # Función que realiza la calibración inicial usando 
     }
 
 # --- Interfaz Tkinter con calibración integrada ---
-class SleepDetectorApp:
-    def __init__(self, root):
-        self.root = root
-        self.root.title("Detección de Sueño")
+class SleepDetectorApp:  # Define una clase llamada SleepDetectorApp, que representa la aplicación de detección de sueño.
+    def __init__(self, root):  # Método constructor que recibe la ventana principal de Tkinter como argumento.
+        self.root = root  # Guarda la referencia a la ventana principal.
+        self.root.title("Detección de Sueño")  # Establece el título de la ventana.
 
-        self.eyes_closed_start_time = None
-        self.eyes_closed_duration_threshold = 5
+        self.eyes_closed_start_time = None  # Inicializa la variable para registrar el momento en que se cierran los ojos.
+        self.eyes_closed_duration_threshold = 5  # Umbral de duración (en segundos) para considerar que una persona se ha dormido.
 
-        self.video_label = tk.Label(root)
-        self.video_label.pack()
+        self.video_label = tk.Label(root)  # Crea una etiqueta para mostrar el video capturado.
+        self.video_label.pack()  # Añade la etiqueta de video a la ventana.
 
-        self.status_label = tk.Label(root, text="", font=("Helvetica", 14))
-        self.status_label.pack(pady=10)
+        self.status_label = tk.Label(root, text="", font=("Helvetica", 14))  # Crea una etiqueta para mostrar el estado (como "Durmiendo").
+        self.status_label.pack(pady=10)  # Añade la etiqueta de estado con un margen vertical.
 
-        self.close_button = tk.Button(root, text="Cerrar", command=self.close_app)
-        self.close_button.pack()
+        self.close_button = tk.Button(root, text="Cerrar", command=self.close_app)  # Crea un botón para cerrar la aplicación.
+        self.close_button.pack()  # Añade el botón a la ventana.
 
-        self.cap = cv2.VideoCapture(0)
+        self.cap = cv2.VideoCapture(0)  # Inicia la captura de video desde la cámara predeterminada (índice 0).
 
-        pygame.mixer.init()
-        pygame.mixer.music.load("alerta.mp3")
+        pygame.mixer.init()  # Inicializa el mezclador de audio de Pygame.
+        pygame.mixer.music.load("alerta.mp3")  # Carga un archivo de sonido que se usará como alerta.
 
-        self.thresholds = calibrate_user(self.cap)
+        self.thresholds = calibrate_user(self.cap)  # Llama a una función para calibrar el sistema con el usuario, usando la cámara.
 
         # Cargar el clasificador Haar para los ojos
-        self.eye_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + "haarcascade_eye.xml")
+        self.eye_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + "haarcascade_eye.xml")  
+        # Carga un clasificador preentrenado para detectar ojos usando el algoritmo Haar Cascade.
 
         # Cargar el clasificador Haar para la detección de rostros
-        self.face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
+        self.face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')  
+        # Carga un clasificador preentrenado para detectar rostros.
 
-        self.update_video()
+        self.update_video()  # Llama a un método que actualiza continuamente el video y procesa los fotogramas.
 
-    def play_alert_sound(self):
-        if not pygame.mixer.music.get_busy():
-            pygame.mixer.music.play()
+    def play_alert_sound(self):  # Define un método para reproducir el sonido de alerta.
+        if not pygame.mixer.music.get_busy():  # Verifica si no se está reproduciendo ya un sonido.
+            pygame.mixer.music.play()  # Reproduce el archivo de sonido cargado previamente.
 
-    def update_video(self):
-        ret, frame = self.cap.read()
-        if not ret:
-            return
+    def update_video(self): # Método principal que se ejecuta continuamente para analizar el video.
+        ret, frame = self.cap.read()  # Lee un frame (fotograma) de la cámara.
+        if not ret:  # Si no se pudo capturar el frame...
+            return  # ...termina la función.
 
-        img_resized = cv2.resize(frame, (224, 224))
-        yawn_pred = predict_yawn(img_resized)
-        eye_pred = predict_eye(img_resized)
+        img_resized = cv2.resize(frame, (224, 224))  # Redimensiona el frame a 224x224 píxeles (tamaño esperado por el modelo).
+        yawn_pred = predict_yawn(img_resized)  # Predice si hay bostezo en el frame.
+        eye_pred = predict_eye(img_resized)  # Predice si los ojos están abiertos o cerrados.
 
-        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-        faces = self.face_cascade.detectMultiScale(gray, 1.3, 5)
+        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)  # Convierte el frame a escala de grises.
+        faces = self.face_cascade.detectMultiScale(gray, 1.3, 5)  # Detecta rostros en la imagen.
 
-        if len(faces) > 0:
-            yawn_text = "Bostezo" if yawn_pred > self.thresholds["yawn_threshold"] else "No bostezo"
-            eye_text = "Ojos abiertos" if eye_pred > self.thresholds["eye_threshold"] else "Ojos cerrados"
+        if len(faces) > 0:  # Si se detecta al menos un rostro...
+            yawn_text = "Bostezo" if yawn_pred > self.thresholds["yawn_threshold"] else "No bostezo"  # Define el texto según el umbral de bostezo.
+            eye_text = "Ojos abiertos" if eye_pred > self.thresholds["eye_threshold"] else "Ojos cerrados"  # Define el texto según el umbral de ojos.
 
-            if yawn_pred > self.thresholds["yawn_threshold"]:
-                threading.Thread(target=self.play_alert_sound, daemon=True).start()
+            if yawn_pred > self.thresholds["yawn_threshold"]:  # Si se detecta un bostezo...
+                threading.Thread(target=self.play_alert_sound, daemon=True).start()  # Reproduce alerta en un hilo separado.
 
-            if eye_pred < self.thresholds["eye_threshold"]:
-                if self.eyes_closed_start_time is None:
-                    self.eyes_closed_start_time = time.time()
-                elif time.time() - self.eyes_closed_start_time >= self.eyes_closed_duration_threshold:
-                    threading.Thread(target=self.play_alert_sound, daemon=True).start()
+            if eye_pred < self.thresholds["eye_threshold"]: # Si los ojos están cerrados...
+                if self.eyes_closed_start_time is None: # Si no hay tiempo registrado aún...
+                    self.eyes_closed_start_time = time.time() # Registra el tiempo actual.
+                elif time.time() - self.eyes_closed_start_time >= self.eyes_closed_duration_threshold: # Si han pasado más de 5 segundos
+                    threading.Thread(target=self.play_alert_sound, daemon=True).start() # Reproduce alerta.
             else:
-                self.eyes_closed_start_time = None
+                self.eyes_closed_start_time = None # Si los ojos están abiertos, reinicia el temporizador.
         else:
-            yawn_text = ""
-            eye_text = ""
-            self.eyes_closed_start_time = None  # opcional: reiniciar temporizador
+            yawn_text = "" # No hay rostro → vacío.
+            eye_text = "" # No hay rostro → vacío.
+            self.eyes_closed_start_time = None  # Reinicia el temporizador si no hay rostro.
 
         # === Detección de ojos con rectángulo verde ===
-        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-        eyes = self.eye_cascade.detectMultiScale(gray, 1.3, 5)
+        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY) # Convierte el frame a escala de grises nuevamente
+        eyes = self.eye_cascade.detectMultiScale(gray, 1.3, 5) # Detecta ojos en el frame.
 
-        for (ex, ey, ew, eh) in eyes:
-            cv2.rectangle(frame, (ex, ey), (ex + ew, ey + eh), (0, 255, 0), 2)
-            cv2.putText(frame, "Ojos detectados", (ex, ey + eh + 20), 
+        for (ex, ey, ew, eh) in eyes: # Dibuja rectángulo y texto por cada ojo detectado.
+            cv2.rectangle(frame, (ex, ey), (ex + ew, ey + eh), (0, 255, 0), 2) # Rectángulo verde alrededor del ojo.
+            cv2.putText(frame, "Ojos detectados", (ex, ey + eh + 20),  # Texto debajo del ojo.
                     cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
 
         # === Detección de rostros con rectángulo rojo ===
-        faces = self.face_cascade.detectMultiScale(gray, 1.3, 5)
+        faces = self.face_cascade.detectMultiScale(gray, 1.3, 5) # Detecta nuevamente rostros.
 
-        for (fx, fy, fw, fh) in faces:
-            cv2.rectangle(frame, (fx, fy), (fx + fw, fy + fh), (0, 0, 255), 2)
-            cv2.putText(frame, "Rostro detectado", (fx, fy + fh + 20), 
+        for (fx, fy, fw, fh) in faces: # Dibuja rectángulo y texto por cada rostro detectado.
+            cv2.rectangle(frame, (fx, fy), (fx + fw, fy + fh), (0, 0, 255), 2) # Rectángulo rojo alrededor del rostro.
+            cv2.putText(frame, "Rostro detectado", (fx, fy + fh + 20),  # Texto debajo del rostro.
                     cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2)
 
 
         # Mostrar texto en el frame solo si hay rostros
-        if len(faces) == 0:
-            cv2.putText(frame, "Rostro no detectado", (10, 30),
+        if len(faces) == 0: # Si no hay rostros detectados...
+            cv2.putText(frame, "Rostro no detectado", (10, 30), # Muestra mensaje de error en pantalla
                     cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 255), 2)
         else:
-            cv2.putText(frame, f"{yawn_text} ({yawn_pred:.2f})", (10, 30),
+            cv2.putText(frame, f"{yawn_text} ({yawn_pred:.2f})", (10, 30), # Muestra estado de bostezo con probabilidad.
                     cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 255), 2)
-            cv2.putText(frame, f"{eye_text} ({eye_pred:.2f})", (10, 60),
+            cv2.putText(frame, f"{eye_text} ({eye_pred:.2f})", (10, 60), # Muestra estado de ojos con probabilidad
                     cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 0, 0), 2)
 
         if len(faces) == 0:
-            self.status_label.config(text="Rostro no detectado")
+            self.status_label.config(text="Rostro no detectado") # Actualiza etiqueta de estado en la interfaz.
         else:
-            self.status_label.config(text=f"{yawn_text} | {eye_text}")
+            self.status_label.config(text=f"{yawn_text} | {eye_text}") # Actualiza la etiqueta con el estado de ojos y bostezo.
 
-        frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        img = Image.fromarray(frame)
-        imgtk = ImageTk.PhotoImage(image=img)
+        frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB) # Convierte el frame de BGR a RGB para mostrarlo correctamente.
+        img = Image.fromarray(frame) # Convierte el frame en un objeto de imagen de PIL.
+        imgtk = ImageTk.PhotoImage(image=img) # Convierte la imagen PIL en formato compatible con Tkinter.
 
-        self.video_label.imgtk = imgtk
-        self.video_label.configure(image=imgtk)
+        self.video_label.imgtk = imgtk # Guarda la referencia de la imagen en el widget para evitar que se elimine.
+        self.video_label.configure(image=imgtk) # Muestra la imagen en el widget de video.
 
-        self.root.after(10, self.update_video)
+        self.root.after(10, self.update_video) # Llama de nuevo a este método después de 10 ms para actualizar el video.
 
-    def close_app(self):
-        self.cap.release()
-        self.root.destroy()
+    def close_app(self): # Define el método `close_app` para cerrar la aplicación correctamente.
+        self.cap.release() # Libera el recurso de la cámara (VideoCapture) para evitar bloqueos.
+        self.root.destroy() # Cierra la ventana principal de la interfaz gráfica Tkinter.
 
 # --- Ejecutar interfaz ---
-if __name__ == "__main__":
-    root = tk.Tk()
-    app = SleepDetectorApp(root)
-    root.mainloop()
+if __name__ == "__main__": # Verifica si el script se está ejecutando directamente (no importado).
+    root = tk.Tk() # Crea la ventana principal de la aplicación usando Tkinter.
+    app = SleepDetectorApp(root) # Crea una instancia de la clase `SleepDetectorApp` pasando la ventana.
+    root.mainloop() # Inicia el bucle principal de la interfaz gráfica, manteniéndola activa.
 
 
