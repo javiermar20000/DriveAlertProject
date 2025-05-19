@@ -66,7 +66,7 @@ def load_or_train_yawn_model():
         yawn_model.fit(
             train_generator,
             validation_data=val_generator,
-            epochs=30
+            epochs=4
         )
         os.makedirs("models", exist_ok=True)
         yawn_model.save("models/yawn_model_trained.h5")
