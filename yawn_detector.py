@@ -2,7 +2,7 @@ import os
 import cv2
 import numpy as np
 from tensorflow.keras.models import Sequential, load_model
-from tensorflow.keras.layers import Conv2D, MaxPooling2D, Flatten, Dense, Dropout
+from tensorflow.keras.layers import Conv2D, MaxPooling2D, Flatten, Dense, Dropout, BatchNormalization
 from tensorflow.keras.preprocessing.image import ImageDataGenerator
 from sklearn.metrics import classification_report, confusion_matrix
 import matplotlib.pyplot as plt
@@ -19,14 +19,36 @@ def load_or_train_yawn_model():
 
         yawn_model = Sequential([
             Conv2D(32, (3, 3), activation='relu', input_shape=(64, 64, 3)),
+            BatchNormalization(),
             MaxPooling2D(2, 2),
+
             Conv2D(64, (3, 3), activation='relu'),
+            BatchNormalization(),
             MaxPooling2D(2, 2),
+
             Conv2D(128, (3, 3), activation='relu'),
+            BatchNormalization(),
             MaxPooling2D(2, 2),
+
+            Conv2D(256, (3, 3), activation='relu'),
+            BatchNormalization(),
+            MaxPooling2D(2, 2),
+
+            Conv2D(512, (3, 3), activation='relu'),
+            BatchNormalization(),
+            MaxPooling2D(2, 2),
+
             Flatten(),
+
             Dense(512, activation='relu'),
             Dropout(0.5),
+
+            Dense(256, activation='relu'),
+            Dropout(0.3),
+
+            Dense(128, activation='relu'),
+            Dropout(0.2),
+
             Dense(1, activation='sigmoid')
         ])
 
@@ -36,10 +58,10 @@ def load_or_train_yawn_model():
             metrics=['accuracy']
         )
 
-        # Usar tus rutas de datos
+        # Generadores de datos
         train_datagen = ImageDataGenerator(
             rescale=1./255,
-            rotation_range=10,
+            rotation_range=15,
             width_shift_range=0.1,
             height_shift_range=0.1,
             shear_range=0.2,
@@ -52,13 +74,13 @@ def load_or_train_yawn_model():
         train_generator = train_datagen.flow_from_directory(
             'yawn_model/train',
             target_size=(64, 64),
-            batch_size=16,
+            batch_size=32,
             class_mode='binary'
         )
         val_generator = test_datagen.flow_from_directory(
             'yawn_model/test',
             target_size=(64, 64),
-            batch_size=16,
+            batch_size=32,
             class_mode='binary',
             shuffle=False
         )
@@ -66,8 +88,9 @@ def load_or_train_yawn_model():
         yawn_model.fit(
             train_generator,
             validation_data=val_generator,
-            epochs=4
+            epochs=10  # Aumentado para mayor precisión
         )
+
         os.makedirs("models", exist_ok=True)
         yawn_model.save("models/yawn_model_trained.h5")
         print("Modelo de bostezo entrenado y guardado.")
@@ -81,11 +104,14 @@ def load_or_train_yawn_model():
         print(classification_report(yawn_true, yawn_pred, target_names=list(val_generator.class_indices.keys())))
         cm_yawn = confusion_matrix(yawn_true, yawn_pred)
         plt.figure(figsize=(5,4))
-        sns.heatmap(cm_yawn, annot=True, fmt='d', cmap='Purples', xticklabels=val_generator.class_indices.keys(), yticklabels=val_generator.class_indices.keys())
+        sns.heatmap(cm_yawn, annot=True, fmt='d', cmap='Purples',
+                    xticklabels=val_generator.class_indices.keys(),
+                    yticklabels=val_generator.class_indices.keys())
         plt.title("Matriz de Confusión - Modelo de Bostezo")
         plt.xlabel("Predicción")
         plt.ylabel("Verdadero")
         plt.show()
+
     return yawn_model
 
 def predict_yawn(image, yawn_model):
