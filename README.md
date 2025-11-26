@@ -11,6 +11,11 @@ Detector de somnolencia en tiempo real para conductores que combina visión por 
   1. `main.py` usa la webcam local.
   2. `ipwebcam.py` recibe vídeo desde la app IP Webcam de un teléfono Android.
 - **Overlay informativo** en OpenCV con métricas, leyendas de colores, contador de eventos y atajos de teclado (`q`, `r`, `s`, `t`).
+<img width="644" height="575" alt="imagen" src="https://github.com/user-attachments/assets/ade4fd51-fff5-4df1-8843-f09ca6f73d71" />
+<img width="640" height="573" alt="imagen" src="https://github.com/user-attachments/assets/ce41cbbb-1d9e-4dc6-9ad3-310ae9271294" />
+
+
+
 
 ## Arquitectura rápida
 | Componente | Descripción |
